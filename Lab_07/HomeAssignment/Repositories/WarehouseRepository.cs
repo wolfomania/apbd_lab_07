@@ -49,9 +49,9 @@ public class WarehouseRepository : IWarehouseRepository
         return res is not null;
     }
 
-    public async Task<bool> DoesOrderWithProductExist(int id, int amount, DateTime dateTime)
+    public async Task<int> GetOrderIdWithProduct(int productId, int amount, DateTime dateTime)
     {
-        var query = "SELECT 1 " +
+        var query = "SELECT IdOrder " +
                     "FROM 'Order' " +
                     "WHERE IdProduct = @ID AND Amount = @Amount AND CreatedAt < @CreatedAt";
 
@@ -60,18 +60,23 @@ public class WarehouseRepository : IWarehouseRepository
 
         command.Connection = connection;
         command.CommandText = query;
-        command.Parameters.AddWithValue("@ID", id);
+        command.Parameters.AddWithValue("@ID", productId);
         command.Parameters.AddWithValue("@Amount", amount);
         command.Parameters.AddWithValue("@CreatedAt", dateTime);
 
         await connection.OpenAsync();
 
-        var res = await command.ExecuteScalarAsync();
+        var reader = await command.ExecuteReaderAsync();
+        
+        if (!reader.HasRows)
+        {
+            return -1;
+        }
 
-        return res is not null;
+        return reader.GetInt32(reader.GetOrdinal("IdOrder"));
     }
 
-    public async Task<bool> IsOrderCompleted(int id)
+    public async Task<bool> IsOrderCompleted(int orderId)
     {
         var query = "SELECT 1 " +
                     "FROM Product_Warehouse " +
@@ -82,7 +87,7 @@ public class WarehouseRepository : IWarehouseRepository
 
         command.Connection = connection;
         command.CommandText = query;
-        command.Parameters.AddWithValue("@ID", id);
+        command.Parameters.AddWithValue("@ID", orderId);
 
         await connection.OpenAsync();
 
@@ -112,7 +117,7 @@ public class WarehouseRepository : IWarehouseRepository
         return res;
     }
 
-    public async Task<double> GetProductPrice(int id)
+    public async Task<double> GetProductPrice(int productId)
     {
         var query = "SELECT Price " +
                     "FROM Product " +
@@ -123,7 +128,7 @@ public class WarehouseRepository : IWarehouseRepository
 
         command.Connection = connection;
         command.CommandText = query;
-        command.Parameters.AddWithValue("@ID", id);
+        command.Parameters.AddWithValue("@ID", productId);
 
         await connection.OpenAsync();
 
@@ -154,8 +159,29 @@ public class WarehouseRepository : IWarehouseRepository
 
         await connection.OpenAsync();
 
-        var reader = await ;
+        var reader = await command.ExecuteReaderAsync();
 
-        return res;
+        return reader.GetInt32(reader.GetOrdinal("IdProductWarehouse"));
+    }
+
+    public async Task<int> AddNewProductWarehouseProcedure(FulfillOrderDto fulfillOrderDto)
+    {
+        var query = "EXEC AddNewProductWarehouse @IdWarehouse, @IdProduct, @Amount, @CreatedAt";
+        
+        await using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("Default"));
+        await using SqlCommand command = new SqlCommand();
+        
+        command.Connection = connection;
+        command.CommandText = query;
+        command.Parameters.AddWithValue("@IdWarehouse", fulfillOrderDto.IdWarehouse);
+        command.Parameters.AddWithValue("@IdProduct", fulfillOrderDto.IdProduct);
+        command.Parameters.AddWithValue("@Amount", fulfillOrderDto.Amount);
+        command.Parameters.AddWithValue("@CreatedAt", fulfillOrderDto.CreatedAt);
+
+        await connection.OpenAsync();
+
+        var reader = await command.ExecuteReaderAsync();
+
+        return reader.GetInt32(reader.GetOrdinal("NewId"));
     }
 }
